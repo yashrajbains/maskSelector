@@ -4,6 +4,7 @@ from astropy.io import fits
 from astropy.wcs import WCS
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
+from matplotlib.widgets import Button
 
 # Initialize global variables
 points = []
@@ -27,10 +28,12 @@ def load_fits_file():
 
 def select_crop_region(target_data):
     """User can select region to crop data."""
-    global crop_points
+    global crop_points, rect
     crop_points = []
+    rect = None
 
     def on_click(event):
+        global rect
         if event.button == 1:  # Left mouse button
             crop_points.append((int(event.xdata), int(event.ydata)))
             print(f"Point selected: ({int(event.xdata)}, {int(event.ydata)})")
@@ -43,6 +46,9 @@ def select_crop_region(target_data):
 
                 width = x_end - x_start
                 height = y_end - y_start
+
+                if rect:
+                    rect.remove()
                 rect = Rectangle(
                     (x_start, y_start),
                     width,
@@ -55,6 +61,21 @@ def select_crop_region(target_data):
                 fig.canvas.draw()
                 print(f"Crop region selected: x={x_start}-{x_end}, y={y_start}-{y_end}")
 
+    def undo(event):
+        """Resets the crop selection."""
+        global rect, crop_points
+        crop_points = []
+        if rect:
+            rect.remove()
+            rect = None
+        fig.canvas.draw()
+        print("Crop selection reset.")
+
+    def confirm(event):
+        """Closes the window when the user confirms."""
+        plt.close(fig)
+
+
     # Plot the target data
     vmin, vmax = np.percentile(target_data, [3, 99.7])
     fig, ax = plt.subplots(figsize=(12, 12))
@@ -64,6 +85,16 @@ def select_crop_region(target_data):
 
     # Connect the click event
     cid = fig.canvas.mpl_connect("button_press_event", on_click)
+
+    ax_undo = plt.axes([0.7, 0.02, 0.1, 0.05])  # Position (left, bottom, width, height)
+    ax_confirm = plt.axes([0.81, 0.02, 0.1, 0.05])
+    
+    btn_undo = Button(ax_undo, 'Undo', color='red', hovercolor='darkred')
+    btn_confirm = Button(ax_confirm, 'Confirm', color='green', hovercolor='darkgreen')
+
+    btn_undo.on_clicked(undo)
+    btn_confirm.on_clicked(confirm)
+
 
     plt.show()
 
@@ -95,11 +126,13 @@ def save_cropped_data(cropped_data):
 
 def create_mask(cropped_data):
     """User selects regions to mask."""
-    global mask, points
+    global mask, points, rects
     mask = np.zeros_like(cropped_data, dtype=bool)
     points = []
+    rects = []
 
     def on_click(event):
+        global rects
         if event.button == 1:  # Left mouse button
             points.append((int(event.xdata), int(event.ydata)))
             print(f"Point selected: ({int(event.xdata)}, {int(event.ydata)})")
@@ -126,8 +159,23 @@ def create_mask(cropped_data):
                     linewidth=2,
                 )
                 ax.add_patch(rect)
+                rects.append(rect)
                 fig.canvas.draw()
                 points.clear()
+
+    def undo(event):
+        """Removes last mask selection."""
+        global rects, points
+        if rects:
+            rect = rects.pop()
+            rect.remove()
+            fig.canvas.draw()
+            print("Last mask selection removed.")
+        points.clear()
+
+    def confirm(event):
+        """Close window when confirmed."""
+        plt.close(fig)
 
     # Plot cropped data
     vmin, vmax = np.percentile(cropped_data, [3, 99.7])
@@ -137,6 +185,17 @@ def create_mask(cropped_data):
     plt.grid()
 
     cid = fig.canvas.mpl_connect("button_press_event", on_click)
+
+    # Add buttons
+    ax_undo = plt.axes([0.7, 0.02, 0.1, 0.05])  
+    ax_confirm = plt.axes([0.81, 0.02, 0.1, 0.05])
+    
+    btn_undo = Button(ax_undo, 'Undo', color='red', hovercolor='darkred')
+    btn_confirm = Button(ax_confirm, 'Confirm', color='green', hovercolor='darkgreen')
+
+    btn_undo.on_clicked(undo)
+    btn_confirm.on_clicked(confirm)
+    
     plt.show()
     fig.canvas.mpl_disconnect(cid)
     return mask
