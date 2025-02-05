@@ -31,6 +31,7 @@ def select_crop_region(target_data):
     global crop_points, rect
     crop_points = []
     rect = None
+    confirmed = False
 
     def on_click(event):
         global rect
@@ -73,6 +74,8 @@ def select_crop_region(target_data):
 
     def confirm(event):
         """Closes the window when the user confirms."""
+        nonlocal confirmed
+        confirmed = True
         plt.close(fig)
 
 
@@ -102,7 +105,8 @@ def select_crop_region(target_data):
     fig.canvas.mpl_disconnect(cid)
 
     if len(crop_points) < 2:
-        raise ValueError("Two points must be selected for cropping.")
+        print("No crop selected. Using full Image")
+        return [(0, 0), (target_data.shape[1], target_data.shape[0])]
     return crop_points
 
 
